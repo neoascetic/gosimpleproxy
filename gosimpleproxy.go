@@ -1,19 +1,20 @@
 package main
 
 import (
-	"os"
+	"flag"
 	"fmt"
 	"log"
-	"time"
-	"strings"
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"os"
+	"strings"
+	"time"
 )
 
 type portMap map[string]string
 
-func buildServer(pMap portMap, defPort string) *http.Server {
+func buildProxy(addr string, pMap portMap, defPort string) *http.Server {
 	director := func(req *http.Request) {
 		host, _, err := net.SplitHostPort(req.Host)
 		if err != nil {
@@ -32,13 +33,14 @@ func buildServer(pMap portMap, defPort string) *http.Server {
 		WriteTimeout: time.Minute,
 		IdleTimeout:  3 * time.Minute,
 		Handler:      &httputil.ReverseProxy{Director: director},
+		Addr:         addr,
 	}
 }
 
-func buildMapAndDefPort(list []string) (portMap, string, error) {
+func buildMapAndDefPort(mapList []string) (portMap, string, error) {
 	var defPort = ""
-	var pMap = make(portMap)
-	for _, mapping := range list {
+	var pMap = make(portMap, len(mapList))
+	for _, mapping := range mapList {
 		host, port, err := net.SplitHostPort(mapping)
 		if err != nil {
 			return pMap, defPort, err
@@ -52,10 +54,15 @@ func buildMapAndDefPort(list []string) (portMap, string, error) {
 }
 
 func main() {
-	pMap, defPort, err := buildMapAndDefPort(os.Args[1:])
+	addr := flag.String("addr", ":http", "which address listen to")
+	flag.Usage = func() {
+		fmt.Printf("Usage: %s [-addr=[iface]:port] domain:port [domain:port ...]", os.Args[0])
+	}
+	flag.Parse()
+	pMap, defPort, err := buildMapAndDefPort(flag.Args())
 	if err != nil || len(pMap) == 0 {
-		fmt.Printf("Usage: %s domain:port [domain:port ...]", os.Args[0])
+		flag.Usage()
 		os.Exit(1)
 	}
-	log.Fatal(buildServer(pMap, defPort).ListenAndServe())
+	log.Fatal(buildProxy(*addr, pMap, defPort).ListenAndServe())
 }
