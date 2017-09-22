@@ -55,8 +55,10 @@ func buildMapAndDefPort(mapList []string) (portMap, string, error) {
 
 func main() {
 	addr := flag.String("addr", ":http", "which address listen to")
+	cert := flag.String("cert", "", "path to the certificate file")
+	key := flag.String("key", "", "path to the key file")
 	flag.Usage = func() {
-		fmt.Printf("Usage: %s [-addr=[iface]:port] domain:port [domain:port ...]", os.Args[0])
+		fmt.Printf("Usage: %s [-addr=[iface]:port] [-cert=cert] [-key=key] domain:port [domain:port ...]", os.Args[0])
 	}
 	flag.Parse()
 	pMap, defPort, err := buildMapAndDefPort(flag.Args())
@@ -64,5 +66,9 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-	log.Fatal(buildProxy(*addr, pMap, defPort).ListenAndServe())
+	if *cert != "" {
+	    log.Fatal(buildProxy(*addr, pMap, defPort).ListenAndServeTLS(*cert, *key))
+	} else {
+	    log.Fatal(buildProxy(*addr, pMap, defPort).ListenAndServe())
+	}
 }
