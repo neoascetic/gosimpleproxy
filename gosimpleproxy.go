@@ -54,21 +54,23 @@ func buildMapAndDefPort(mapList []string) (portMap, string, error) {
 }
 
 func main() {
-	addr := flag.String("addr", ":http", "which address listen to")
-	cert := flag.String("cert", "", "path to the certificate file")
-	key := flag.String("key", "", "path to the key file")
+	var addr, cert, key string
+	flag.StringVar(&addr, "addr", ":http", "which address listen to")
+	flag.StringVar(&cert, "cert", "", "path to the certificate file")
+	flag.StringVar(&key, "key", "", "path to the key file")
 	flag.Usage = func() {
-		fmt.Printf("Usage: %s [-addr=[iface]:port] [-cert=cert] [-key=key] domain:port [domain:port ...]", os.Args[0])
+		fmt.Printf("Usage: %s [-addr=[iface]:port] [(-cert=cert -key=key)] domain:port [domain:port ...]", os.Args[0])
 	}
 	flag.Parse()
 	pMap, defPort, err := buildMapAndDefPort(flag.Args())
-	if err != nil || len(pMap) == 0 {
+	if err != nil || len(pMap) == 0 || ((cert != "") != (key != "")) {
 		flag.Usage()
 		os.Exit(1)
 	}
-	if *cert != "" {
-	    log.Fatal(buildProxy(*addr, pMap, defPort).ListenAndServeTLS(*cert, *key))
+	proxy := buildProxy(addr, pMap, defPort)
+	if cert == "" {
+	    log.Fatal(proxy.ListenAndServe())
 	} else {
-	    log.Fatal(buildProxy(*addr, pMap, defPort).ListenAndServe())
+	    log.Fatal(proxy.ListenAndServeTLS(cert, key))
 	}
 }
