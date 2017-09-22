@@ -69,8 +69,8 @@ func main() {
 	}
 	proxy := buildProxy(addr, pMap, defPort)
 	if cert == "" {
-	    log.Fatal(proxy.ListenAndServe())
+		log.Fatal(proxy.ListenAndServe())
 	} else {
-	    log.Fatal(proxy.ListenAndServeTLS(cert, key))
+		log.Fatal(proxy.ListenAndServeTLS(cert, key))
 	}
 }
