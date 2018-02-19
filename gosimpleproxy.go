@@ -74,9 +74,9 @@ func main() {
 	flag.StringVar(&cert, "cert", "", "path to the certificate file (requires -key)")
 	flag.StringVar(&key, "key", "", "path to the key file (requires -cert)")
 	flag.Usage = func() {
-		fmt.Printf("Usage: %s [-addr=[iface]:port] [(-cert=cert -key=key)] domain@upstream:port [domain@upstream:port ...]\n", os.Args[0])
+		fmt.Printf("Usage: %s [-addr=[iface]:port] [(-cert=cert -key=key)] domain@upstream [domain@upstream ...]\n", os.Args[0])
 		flag.PrintDefaults()
-		fmt.Println("  domain@upstream:port")
+		fmt.Println("  domain@upstream")
 		fmt.Println("    \tdomain may contain simple placeholders, such as *.domain.name")
 	}
 	flag.Parse()
