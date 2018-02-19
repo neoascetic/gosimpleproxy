@@ -13,29 +13,29 @@ import (
 	"time"
 )
 
-type portMap map[string]string
+type upstreamMap map[string]string
 type regexpMap map[*regexp.Regexp]string
 
-func buildProxy(addr string, pMap portMap, rMap regexpMap, defPort string) *http.Server {
+func buildProxy(addr string, uMap upstreamMap, rMap regexpMap, defUpstream string) *http.Server {
 	director := func(req *http.Request) {
 		host, _, err := net.SplitHostPort(req.Host)
 		if err != nil {
 			host = req.Host
 		}
 		host = strings.ToLower(host)
-		port, found := pMap[host]
+		upstream, found := uMap[host]
 		if !found {
-			port = defPort
-			for pattern, possiblePort := range rMap {
+			upstream = defUpstream
+			for pattern, possibleUpstream := range rMap {
 				if pattern.MatchString(host) {
-					pMap[host], port = possiblePort, possiblePort
+					uMap[host], upstream = possibleUpstream, possibleUpstream
 					break
 				}
 			}
 		}
 		req.URL.Scheme = "http"
-		req.URL.Host = "localhost:" + port
-		log.Printf("%s -> %s", req.Host, port)
+		req.URL.Host = upstream
+		log.Printf("%s -> %s", req.Host, upstream)
 	}
 	return &http.Server{
 		ReadTimeout:  time.Minute,
@@ -46,25 +46,26 @@ func buildProxy(addr string, pMap portMap, rMap regexpMap, defPort string) *http
 	}
 }
 
-func buildMapAndDefPort(mapList []string) (portMap, regexpMap, string, error) {
-	var defPort = ""
-	var pMap, rMap = make(portMap, len(mapList)), make(regexpMap)
+func buildMapAndDefUpstream(mapList []string) (upstreamMap, regexpMap, string, error) {
+	var defUpstream = ""
+	var uMap, rMap = make(upstreamMap, len(mapList)), make(regexpMap)
 	for _, mapping := range mapList {
-		host, port, err := net.SplitHostPort(mapping)
-		if err != nil {
-			return pMap, rMap, defPort, err
+		hostToUpstream := strings.SplitN(mapping, "@", 2)
+		if len(hostToUpstream) != 2 {
+			return uMap, rMap, defUpstream, fmt.Errorf("Wrong mapping: %s", mapping)
 		}
+		host, upstream := hostToUpstream[0], hostToUpstream[1]
 		if strings.Contains(host, "*") {
 			pattern := strings.Replace(regexp.QuoteMeta(host), `\*`, ".+", -1)
-			rMap[regexp.MustCompile("^" + pattern + "$")] = port
+			rMap[regexp.MustCompile("^" + pattern + "$")] = upstream
 		} else {
-			pMap[host] = port
+			uMap[host] = upstream
 		}
-		if defPort == "" {
-			defPort = port
+		if defUpstream == "" {
+			defUpstream = upstream
 		}
 	}
-	return pMap, rMap, defPort, nil
+	return uMap, rMap, defUpstream, nil
 }
 
 func main() {
@@ -73,18 +74,21 @@ func main() {
 	flag.StringVar(&cert, "cert", "", "path to the certificate file (requires -key)")
 	flag.StringVar(&key, "key", "", "path to the key file (requires -cert)")
 	flag.Usage = func() {
-		fmt.Printf("Usage: %s [-addr=[iface]:port] [(-cert=cert -key=key)] domain:port [domain:port ...]\n", os.Args[0])
+		fmt.Printf("Usage: %s [-addr=[iface]:port] [(-cert=cert -key=key)] domain@upstream:port [domain@upstream:port ...]\n", os.Args[0])
 		flag.PrintDefaults()
-		fmt.Println("  domain:port")
+		fmt.Println("  domain@upstream:port")
 		fmt.Println("    \tdomain may contain simple placeholders, such as *.domain.name")
 	}
 	flag.Parse()
-	pMap, rMap, defPort, err := buildMapAndDefPort(flag.Args())
-	if err != nil || len(pMap) == 0 || ((cert != "") != (key != "")) {
+	uMap, rMap, defUpstream, err := buildMapAndDefUpstream(flag.Args())
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	} else if len(uMap) == 0 || ((cert != "") != (key != "")) {
 		flag.Usage()
 		os.Exit(1)
 	}
-	proxy := buildProxy(addr, pMap, rMap, defPort)
+	proxy := buildProxy(addr, uMap, rMap, defUpstream)
 	if cert == "" {
 		log.Fatal(proxy.ListenAndServe())
 	} else {
